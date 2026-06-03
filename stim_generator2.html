@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>心理学实验刺激生成器 V12.1 (全模式统计版)</title>
+    <style>
+        :root { --panel-bg: #ffffff; --body-bg: #f1f5f9; --accent: #2563eb; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--body-bg); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .app-container { background: var(--panel-bg); display: grid; grid-template-columns: 350px 1fr; gap: 20px; padding: 25px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 1400px; width: 100%; }
+        .sidebar { border-right: 1px solid #e2e8f0; padding-right: 20px; display: flex; flex-direction: column; gap: 10px; }
+        h2 { font-size: 1.1rem; margin: 0; color: #1e293b; border-left: 4px solid var(--accent); padding-left: 12px; }
+        .control-group { display: flex; flex-direction: column; gap: 4px; }
+        label { font-size: 0.75rem; font-weight: 700; color: #64748b; display: flex; justify-content: space-between; }
+        .val-display { color: var(--accent); font-family: monospace; }
+        select, input[type="range"], button { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem; }
+        
+        .toggle-group { flex-direction: row; justify-content: space-between; align-items: center; padding: 5px 0; }
+        .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(14px); }
+
+        .btn-main { background: var(--accent); color: white; border: none; cursor: pointer; font-weight: bold; margin-top: 5px; }
+        .btn-sub { background: #10b981; color: white; border: none; cursor: pointer; margin-top: 5px; }
+        .btn-info { background: #6366f1; color: white; border: none; cursor: pointer; margin-top: 5px; }
+
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px; }
+        .stat-card { background: #f8fafc; padding: 8px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-label { font-size: 0.6rem; color: #94a3b8; display: block; text-transform: uppercase; }
+        .stat-num { font-size: 0.9rem; font-weight: 800; color: #1e293b; font-family: monospace; }
+
+        .main-display { display: flex; flex-direction: column; gap: 20px; }
+        .canvas-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .canvas-card { background: white; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; text-align: center; }
+        canvas { background: #fff; max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #eee; }
+        .colorbar-labels { width: 90%; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; margin-top: 4px; font-family: monospace; }
+        .colorbar { width: 90%; height: 10px; background: linear-gradient(to right, #30123b, #4675ed, #1be4df, #abf837, #fead2b, #db3804, #7a0403); border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <aside class="sidebar">
+        <h2>实验控制面板</h2>
+        
+        <div class="control-group">
+            <label>矩阵规模 (N) <span class="val-display" id="n-lab">8</span></label>
+            <input type="range" id="n-in" min="4" max="25" value="8">
+        </div>
+
+        <div class="control-group">
+            <label>目标色占比 <span class="val-display" id="p-lab">25%</span></label>
+            <input type="range" id="p-in" min="5" max="95" value="25">
+        </div>
+
+        <div class="control-group">
+            <label>聚集权重 (C) <span class="val-display" id="c-lab">0.50</span></label>
+            <input type="range" id="c-in" min="0" max="100" value="50">
+        </div>
+
+        <div class="control-group">
+            <label>空间模式 (Pattern):</label>
+            <select id="pat-in">
+                <option value="pure_rand">✨ 绝对随机 (Fisher-Yates)</option>
+                <option value="block">成块聚集 (Blocks)</option>
+                <option value="rows">成行排布 (Rows)</option>
+                <option value="cols">成列排布 (Cols)</option>
+                <option value="cross">十字分布 (Cross)</option>
+                <option value="corner">对角线分布 (Diagonal)</option>
+                <option value="ring">环形分布 (Ring)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>配色方案:</label>
+            <select id="clr-in">
+                <option value="scientific-by">科研黄蓝 (125,205 / 235,240)</option>
+                <option value="soft-rb">柔和红蓝</option>
+            </select>
+        </div>
+
+        <div class="control-group toggle-group">
+            <label>显示网格边界</label>
+            <label class="switch"><input type="checkbox" id="border-in" checked><span class="slider"></span></label>
+        </div>
+
+        <div class="control-group">
+            <label>热力图平滑 (Blur): <span class="val-display" id="b-lab">20</span></label>
+            <input type="range" id="blur-in" min="0" max="40" value="20">
+        </div>
+        
+        <button class="btn-main" id="gen-btn">🎲 重新生成种子</button>
+        <button class="btn-sub" id="dl-stim-btn">💾 导出刺激图</button>
+        <button class="btn-info" id="dl-heat-val-btn">📊 导出带数值热力图</button>
+
+        <div class="stats-grid">
+            <div class="stat-card"><span class="stat-label">Moran's I</span><span class="stat-num" id="stat-mi">0.000</span></div>
+            <div class="stat-card"><span class="stat-label">Joint-Z</span><span class="stat-num" id="stat-z">0.00</span></div>
+            <div class="stat-card"><span class="stat-label">平均熵</span><span class="stat-num" id="stat-ent">0.000</span></div>
+            <div class="stat-card"><span class="stat-label">实际计数</span><span class="stat-num" id="stat-count">0/0</span></div>
+        </div>
+    </aside>
+
+    <main class="main-display">
+        <div class="canvas-row">
+            <div class="canvas-card"><h3>刺激材料 (Stimulus)</h3><canvas id="c-stim"></canvas></div>
+            <div class="canvas-card">
+                <h3>信息量分析 (Entropy Map)</h3>
+                <canvas id="c-heat"></canvas>
+                <div style="display:flex; flex-direction:column; align-items:center; margin-top:10px;">
+                    <div class="colorbar"></div>
+                    <div class="colorbar-labels"><span>0 (冗余)</span><span>0.5</span><span>1.0 (高熵)</span></div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    const el = id => document.getElementById(id);
+    const cvsS = el('c-stim'), ctxS = cvsS.getContext('2d');
+    const cvsH = el('c-heat'), ctxH = cvsH.getContext('2d');
+
+    const palettes = { 'scientific-by': ['#EBF0AA', '#7DCDCD'], 'soft-rb': ['#F87171', '#60A5FA'] };
+    const turboMap = [[48,18,59],[65,69,171],[70,117,245],[54,161,253],[27,204,223],[36,236,166],[108,251,99],[171,248,55],[226,220,55],[254,173,43],[245,113,19],[219,56,4],[177,18,2],[122,4,3]];
+
+    function getTurboColor(v) {
+        v = Math.max(0, Math.min(1, v));
+        const idx = Math.floor(v * (turboMap.length - 1));
+        return `rgb(${turboMap[idx][0]},${turboMap[idx][1]},${turboMap[idx][2]})`;
+    }
+
+    let currentGrid = [], currentEntMap = [];
+
+    function calculateStats(grid, n, p) {
+        const total = n * n;
+        const avg = grid.reduce((a, b) => a + b, 0) / total;
+        let miNum = 0, miDen = 0, wSum = 0, rr = 0, totalJoins = 0;
+        for (let i = 0; i < total; i++) miDen += Math.pow(grid[i] - avg, 2);
+        for (let r = 0; r < n; r++) {
+            for (let c = 0; c < n; c++) {
+                const i = r * n + c;
+                const neighbors = [];
+                if (c < n - 1) neighbors.push(r * n + (c + 1)); 
+                if (r < n - 1) neighbors.push((r + 1) * n + c); 
+                neighbors.forEach(j => {
+                    miNum += (grid[i] - avg) * (grid[j] - avg);
+                    wSum++; totalJoins++;
+                    if (grid[i] === 1 && grid[j] === 1) rr++;
+                });
+            }
+        }
+        const mi = miDen < 0.00001 ? 0 : (total / wSum) * (miNum / miDen);
+        const expRR = totalJoins * (p * p);
+        const z = (rr - expRR) / Math.sqrt(expRR || 1);
+        return { mi, z };
+    }
+
+    function run() {
+        const n = parseInt(el('n-in').value), p_t = parseInt(el('p-in').value)/100;
+        const c_v = parseInt(el('c-in').value)/100, total = n*n, count_t = Math.round(total*p_t);
+        const mode = el('pat-in').value;
+        
+        el('n-lab').innerText = n; el('p-lab').innerText = el('p-in').value+'%';
+        el('c-lab').innerText = c_v.toFixed(2); el('b-lab').innerText = el('blur-in').value;
+
+        let grid = new Array(total).fill(0);
+        let scores = new Array(total).fill(0);
+        const mid = (n - 1) / 2;
+
+        for (let i = 0; i < total; i++) {
+            const r = Math.floor(i/n), c = i%n;
+            let s = Math.random() * (1.1 - c_v); // 基础随机分
+            if (mode !== 'pure_rand') {
+                switch(mode) {
+                    case 'rows': if(r % 2 === 0) s += c_v; break;
+                    case 'cols': if(c % 2 === 0) s += c_v; break;
+                    case 'cross': if(Math.abs(r-mid)<1 || Math.abs(c-mid)<1) s += c_v; break;
+                    case 'corner': if(Math.abs(r-c)<1 || Math.abs(r+c-(n-1))<1) s += c_v; break;
+                    case 'ring': let d=Math.sqrt((r-mid)**2+(c-mid)**2); if(d>n/4 && d<n/2.2) s += c_v; break;
+                    case 'block': s += 0.2; break;
+                }
+            }
+            scores[i] = s;
+        }
+
+        // 空间平滑逻辑 (实现 Block 聚集)
+        let iters = mode === 'pure_rand' ? 0 : Math.floor(c_v * 12);
+        for(let j=0; j<iters; j++) {
+            let temp = [...scores];
+            for(let i=0; i<total; i++) {
+                const r=Math.floor(i/n), c=i%n;
+                let sum=0, ct=0;
+                if(r>0){sum+=scores[i-n]; ct++;} if(r<n-1){sum+=scores[i+n]; ct++;}
+                if(c>0){sum+=scores[i-1]; ct++;} if(c<n-1){sum+=scores[i+1]; ct++;}
+                temp[i] = (sum/ct)*0.7 + scores[i]*0.3;
+            }
+            scores = temp;
+        }
+
+        let sorted = scores.map((s, i) => ({s: s + Math.random()*0.001, i})).sort((a,b)=>b.s-a.s);
+        for(let i=0; i<count_t; i++) grid[sorted[i].i] = 1;
+        currentGrid = grid;
+        
+        // 计算熵和统计
+        currentEntMap = new Array(total).fill(0);
+        for (let r=0; r<n; r++) {
+            for (let c=0; c<n; c++) {
+                let ones=0, ct=0;
+                for(let dr=-1; dr<=1; dr++) {
+                    for(let dc=-1; dc<=1; dc++){
+                        const nr=r+dr, nc=c+dc;
+                        if(nr>=0 && nr<n && nc>=0 && nc<n){ if(grid[nr*n+nc]===1) ones++; ct++; }
+                    }
+                }
+                const p = ones/ct;
+                currentEntMap[r*n+c] = (p<=0||p>=1)?0 : (-p*Math.log2(p)-(1-p)*Math.log2(1-p));
+            }
+        }
+
+        const st = calculateStats(grid, n, p_t);
+        el('stat-mi').innerText = st.mi.toFixed(3);
+        el('stat-z').innerText = st.z.toFixed(2);
+        el('stat-ent').innerText = (currentEntMap.reduce((a,b)=>a+b,0)/total).toFixed(3);
+        el('stat-count').innerText = `${grid.filter(x=>x===1).length}/${total}`;
+        render(n);
+    }
+
+    function render(n) {
+        const size = 600, cell = size/n;
+        cvsS.width=cvsH.width=size; cvsS.height=cvsH.height=size;
+        const colors = palettes[el('clr-in').value];
+        currentGrid.forEach((v,i)=>{
+            const x=(i%n)*cell, y=Math.floor(i/n)*cell;
+            ctxS.fillStyle = v?colors[0]:colors[1];
+            ctxS.fillRect(x,y,cell+0.5,cell+0.5);
+            if(el('border-in').checked){ ctxS.strokeStyle="rgba(255,255,255,0.6)"; ctxS.strokeRect(x,y,cell,cell); }
+        });
+        currentEntMap.forEach((v,i)=>{
+            ctxH.fillStyle = getTurboColor(v);
+            ctxH.fillRect((i%n)*cell, Math.floor(i/n)*cell, cell+0.5, cell+0.5);
+        });
+        const bl = parseInt(el('blur-in').value);
+        if(bl>0){ ctxH.filter=`blur(${bl}px)`; ctxH.drawImage(cvsH,0,0); ctxH.filter='none'; }
+    }
+
+    el('dl-stim-btn').onclick = () => {
+        const a = document.createElement('a'); a.download=`STIM_N${el('n-in').value}.png`; a.href=cvsS.toDataURL(); a.click();
+    };
+    el('dl-heat-val-btn').onclick = () => {
+        const n=parseInt(el('n-in').value), size=800, cell=size/n, tC=document.createElement('canvas');
+        tC.width=tC.height=size; const tX=tC.getContext('2d');
+        currentEntMap.forEach((v,i)=>{
+            const x=(i%n)*cell, y=Math.floor(i/n)*cell;
+            tX.fillStyle=getTurboColor(v); tX.fillRect(x,y,cell,cell);
+            tX.font=`${cell/4}px monospace`; tX.textAlign="center";
+            tX.fillStyle=v>0.6?"#000":"#fff"; tX.fillText(v.toFixed(3), x+cell/2, y+cell/2);
+        });
+        const a=document.createElement('a'); a.download=`VAL_HEAT.png`; a.href=tC.toDataURL(); a.click();
+    };
+    [el('n-in'),el('p-in'),el('c-in'),el('pat-in'),el('clr-in'),el('blur-in'),el('border-in')].forEach(i=>i.oninput=run);
+    el('gen-btn').onclick = run;
+    run();
+</script>
+</body>
+</html>
